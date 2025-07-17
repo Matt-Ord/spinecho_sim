@@ -24,7 +24,8 @@
         "mathbf",
         "pycache",
         "venv",
-        "vdot"
+        "vdot",
+        "tqdm"
     ],
     "userWords": [
         "Larmor"

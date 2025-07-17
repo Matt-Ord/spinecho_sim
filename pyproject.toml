@@ -5,7 +5,7 @@ description = "Analysis of Spin Echo Trajectories, using Phonopy and Wannier Int
 authors = [{ name = "William Royce", email = "wr286@cam.ac.uk" }]
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
-dependencies = ["numpy>=2.3.1", "scipy>=1.16.0"]
+dependencies = ["numpy>=2.3.1", "scipy>=1.16.0", "tqdm>=4.67.1"]
 
 [project.optional-dependencies]
 dev = [

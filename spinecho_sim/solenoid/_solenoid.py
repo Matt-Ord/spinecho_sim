@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from scipy.integrate import solve_ivp  # type: ignore[import-untyped]
+from tqdm import tqdm
 
 from spinecho_sim.state import (
     CoherentSpin,
@@ -112,7 +113,7 @@ class Solenoid:
             trajectories=TrajectoryList.from_trajectories(
                 [
                     self.simulate_trajectory(state, n_steps).trajectory
-                    for state in initial_states
+                    for state in tqdm(initial_states, desc="Simulating Trajectories")
                 ]
             ),
             positions=z_points,
