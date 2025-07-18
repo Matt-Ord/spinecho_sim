@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from spinecho_sim.majorana import (
-    get_majorana_coefficients_from_spin_multiple,
+    majorana_stars,
     stars_to_states,
 )
 
@@ -16,7 +16,7 @@ def test_spin_states_roundtrip() -> None:
         ],
     )
     # Convert to Majorana points
-    majorana_points = get_majorana_coefficients_from_spin_multiple(spin_states)
+    majorana_points = majorana_stars(spin_states)
     # Convert back to states
     recovered_states = stars_to_states(majorana_points)
     # Check if recovered states match original (up to global phase)

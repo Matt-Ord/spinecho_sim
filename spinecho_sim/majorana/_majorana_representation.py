@@ -1,16 +1,18 @@
+"""Provide functions to convert between Majorana stars and quantum state coefficients."""
+
 from __future__ import annotations
 
-from math import comb
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.polynomial import polynomial as p
+from scipy.special import comb  # type: ignore[import]
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def _get_majorana_coefficients_from_spin(
+def _get_majorana_coefficients_from_spin_old(
     spin_coefficients: np.ndarray[Any, np.dtype[np.complexfloating]], z_tol: float = 1e8
 ) -> np.ndarray[Any, np.dtype[np.float64]]:
     """Compute the Majorana points (Bloch sphere coordinates) for a given quantum state."""
@@ -18,7 +20,7 @@ def _get_majorana_coefficients_from_spin(
 
     # build polynomial coefficients a_k
     k_arr = np.arange(len(spin_coefficients))
-    binomial_arr = np.sqrt([comb(two_j, k) for k in k_arr])
+    binomial_arr = np.sqrt(np.asarray(comb(two_j, k_arr), dtype=np.float64))
     polynomial_coefficients = binomial_arr * spin_coefficients[two_j - k_arr]
 
     z = p.polyroots(polynomial_coefficients)  # returns 2J complex roots
@@ -34,12 +36,13 @@ def _get_majorana_coefficients_from_spin(
     return stars
 
 
-def get_majorana_coefficients_from_spin_multiple(
+def majorana_stars_old(
     spin_coefficients: np.ndarray[Any, np.dtype[np.complexfloating]], z_tol: float = 1e8
 ) -> np.ndarray[Any, np.dtype[np.float64]]:
     """Compute Majorana points for multiple sets of spin coefficients."""
     points_list = [
-        _get_majorana_coefficients_from_spin(c, z_tol=z_tol) for c in spin_coefficients
+        _get_majorana_coefficients_from_spin_old(c, z_tol=z_tol)
+        for c in spin_coefficients
     ]
     # Calculate j from the length of the spin vector
     j = (spin_coefficients.shape[1] - 1) / 2  # Spin-j vector has 2j+1 coefficients
@@ -68,20 +71,19 @@ def _stars_to_polynomial(
     n_infinity = np.count_nonzero(~finite_mask)
 
     # polynomial from the finite roots (ascending order)
-    a = p.polyfromroots(finite_roots)  # degree = len(finite)
-    a = np.asarray(a, dtype=np.complex128)  # ensure correct dtype
+    a = np.asarray(
+        p.polyfromroots(finite_roots), dtype=np.complex128
+    )  # degree = len(finite)
     # each root at ∞ loses degree in P(z)   →   pad with one zero on the right
     return np.concatenate((a, np.zeros(n_infinity, dtype=a.dtype)))
 
 
-def _polynomial_to_state(a: NDArray[np.complexfloating]) -> NDArray[np.complexfloating]:
+def _polynomial_to_state(a: NDArray[np.complex128]) -> NDArray[np.complex128]:
     """Convert a polynomial representation to quantum state coefficients."""
     two_j = len(a) - 1
-    c = np.empty(len(a), dtype=np.complex128)
-
-    # Majorana conversion:  a_k = √C(2J,k) c_{J-k}
-    for k in range(two_j + 1):
-        c[two_j - k] = a[k] / np.sqrt(comb(two_j, k))
+    k = np.arange(two_j + 1)
+    binomial_weights = np.sqrt(np.asarray(comb(two_j, k), dtype=np.float64))
+    c = (a / binomial_weights)[::-1].astype(np.complex128)
 
     # strip the arbitrary global phase and renormalize
     idx_max = np.argmax(np.abs(c))
@@ -90,17 +92,17 @@ def _polynomial_to_state(a: NDArray[np.complexfloating]) -> NDArray[np.complexfl
     return c
 
 
-def _stars_to_state(
+def stars_to_state(
     stars: NDArray[np.float64], tol: float = 1e-10
-) -> NDArray[np.complexfloating]:
+) -> NDArray[np.complex128]:
     """Convert a list of Majorana stars (theta, phi) to the corresponding quantum state coefficients."""
     a = _stars_to_polynomial(stars, tol=tol)
-    return _polynomial_to_state(a)
+    return _polynomial_to_state(a.astype(np.complex128))
 
 
 def stars_to_states(
     stars: NDArray[np.float64], tol: float = 1e-10
-) -> np.ndarray[tuple[int, int], np.dtype[np.complexfloating]]:
+) -> np.ndarray[tuple[int, int], np.dtype[np.complex128]]:
     """Convert multiple sets of Majorana stars (theta, phi) to quantum state coefficients."""
     # Vectorized as all states have the same number of stars and output length
-    return np.stack([_stars_to_state(stars[i], tol=tol) for i in range(stars.shape[0])])
+    return np.stack([stars_to_state(stars[i], tol=tol) for i in range(stars.shape[0])])

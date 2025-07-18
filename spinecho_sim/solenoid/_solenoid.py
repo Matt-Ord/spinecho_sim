@@ -71,6 +71,13 @@ class Solenoid:
             # TODO: can we find B_phi and B_theta analytically to make this faster?  # noqa: FIX002
             field = _get_field(z, initial_state.displacement, self)
 
+            # Ensure theta is not too close to 0 or pi to avoid coordinate singularity
+            epsilon = 1e-12
+            if np.abs(theta) < epsilon:
+                theta = epsilon
+            elif np.abs(theta - np.pi) < epsilon:
+                theta = np.pi - epsilon
+
             # d_theta / dt = B_x sin phi - B_y cos phi
             d_theta = field[0] * np.sin(phi) - field[1] * np.cos(phi)
             # d_phi / dt = tan theta * (B_x cos phi + B_y sin phi) - B_z
@@ -89,7 +96,7 @@ class Solenoid:
             rtol=1e-8,
         )
         spins = CoherentSpinList.from_spins(
-            [CoherentSpin(theta=ang[0], phi=ang[1]) for ang in sol.y.T]  # type: ignore[return-value]
+            [CoherentSpin(theta=ang[0], phi=ang[1]) for ang in np.array(sol.y).T]  # type: ignore[return-value]
         )
         return SolenoidTrajectory(
             trajectory=Trajectory(

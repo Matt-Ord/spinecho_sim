@@ -110,9 +110,6 @@ class CoherentSpin:
     Classical coherent states are often used to model the behavior of spins in magnetic fields,
     as the dynamics of a coherent spin state can be described by the Larmor precession formula
     in the presence of a magnetic field.
-
-    ... math::
-        \frac{d\\mathbf{S}}{dt} = \\gamma \\mathbf{S} \times \\mathbf{B}
     """
 
     theta: float
