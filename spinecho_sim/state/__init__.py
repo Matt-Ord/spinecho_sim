@@ -28,6 +28,7 @@ from spinecho_sim.state._spin import (
     GenericSpin,
     GenericSpinList,
     Spin,
+    expectation_values,
 )
 from spinecho_sim.state._state import (
     ParticleState,
@@ -48,6 +49,7 @@ __all__ = [
     "Spin",
     "Trajectory",
     "TrajectoryList",
+    "expectation_values",
     "sample_gaussian_velocities",
     "sample_uniform_displacement",
 ]
