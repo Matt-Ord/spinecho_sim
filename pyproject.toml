@@ -1,7 +1,7 @@
 [project]
 name = "spinecho_sim"
 version = "0.0.2"
-description = "Analysis of Spin Echo Trajectories, using Phonopy and Wannier Interpolation"
+description = "Analysis of Spin Echo Trajectories"
 authors = [{ name = "William Royce", email = "wr286@cam.ac.uk" }]
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
