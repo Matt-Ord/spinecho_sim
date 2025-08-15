@@ -41,6 +41,64 @@ def _majorana_polynomial_components(
     return state / np.linalg.norm(state)
 
 
+def bargmann_inner_product(
+    a: np.ndarray[tuple[int], np.dtype[np.complex128]],
+    b: np.ndarray[tuple[int], np.dtype[np.complex128]],
+) -> np.complexfloating:
+    """Compute the inner product of two polynomials in z."""
+    two_j = len(a) - 1
+    k = np.arange(two_j + 1)
+    w = 1 / np.asarray(comb(two_j, k), dtype=np.complex128)
+    return np.vdot(a, b * w)  # vdot = conjugate(a)·b
+
+
+def _polynomial_z_derivative(
+    a: np.ndarray[tuple[int], np.dtype[np.complex128]],
+) -> np.ndarray[tuple[int], np.dtype[np.complex128]]:
+    k = np.arange(len(a) - 1)
+    da = (k + 1) * a[k + 1]
+    return np.concatenate((da, np.zeros(1, dtype=np.complex128)))
+
+
+def _polynomial_z_multiplication(
+    a: np.ndarray[tuple[int], np.dtype[np.complex128]], shift: int = 1
+) -> np.ndarray[tuple[int], np.dtype[np.complex128]]:
+    return np.concatenate((np.zeros(shift, dtype=np.complex128), a[:-shift]))
+
+
+def dicke_to_poly(
+    c: np.ndarray[tuple[int], np.dtype[np.complex128]],
+) -> np.ndarray[tuple[int], np.dtype[np.complex128]]:
+    two_j = len(c) - 1
+    k = np.arange(two_j + 1)
+    return np.sqrt(np.asarray(comb(two_j, k), dtype=np.float64)) * c[two_j - k]
+
+
+def _s_minus(
+    a: np.ndarray[tuple[int], np.dtype[np.complex128]],
+) -> np.ndarray[tuple[int], np.dtype[np.complex128]]:
+    return _polynomial_z_derivative(a)  # Eq. (1) rightmost
+
+
+def _s_plus(
+    a: np.ndarray[tuple[int], np.dtype[np.complex128]],
+) -> np.ndarray[tuple[int], np.dtype[np.complex128]]:
+    two_j = len(a) - 1
+    term1 = -_polynomial_z_multiplication(
+        _polynomial_z_derivative(a), shift=2
+    )  # -ħ z^2 dP/dz
+    term2 = two_j * _polynomial_z_multiplication(a, shift=1)  # +2ħj z P
+    return term1 + term2
+
+
+def _s_z(
+    a: np.ndarray[tuple[int], np.dtype[np.complex128]],
+) -> np.ndarray[tuple[int], np.dtype[np.complex128]]:
+    j = (len(a) - 1) / 2
+    term = _polynomial_z_multiplication(_polynomial_z_derivative(a), shift=1)  # z dP/dz
+    return term - j * a
+
+
 class Spin[S: tuple[int, ...]](Sequence[Any]):  # noqa: PLR0904
     """A class representing a collection of lists of CoherentSpin objects."""
 
@@ -213,10 +271,11 @@ def _j_plus_factors(two_j: int) -> np.ndarray[tuple[int], np.dtype[np.float64]]:
     return np.sqrt((j - m) * (j + m + 1))
 
 
-def _get_transverse_expectation(
+def _get_expectation(
     state_coefficients: np.ndarray[Any, np.dtype[np.complex128]],
 ) -> tuple[float, float, float]:
     """Return the expectation values of S_x, S_y, and S_z for a given state vector using cached arrays."""
+    state_coefficients /= np.linalg.norm(state_coefficients)  # Normalize the state
     two_j = state_coefficients.size - 1
     factors = _j_plus_factors(two_j)  # sparse array
 
@@ -231,6 +290,25 @@ def _get_transverse_expectation(
     return jx, jy, jz
 
 
+def _get_bargmann_expectation(
+    state_coefficients: np.ndarray[Any, np.dtype[np.complex128]],
+) -> tuple[float, float, float]:
+    """Return the expectation values of S_x, S_y, and S_z for a given state vector using bargmann representation operators."""
+    polynomial_coefficients = dicke_to_poly(state_coefficients)
+
+    # operator actions
+    a_minus = _s_minus(polynomial_coefficients)
+    a_plus = _s_plus(polynomial_coefficients)
+    a_z = _s_z(polynomial_coefficients)
+
+    sx = 0.5 * bargmann_inner_product(polynomial_coefficients, a_plus + a_minus)
+    sy = -0.5j * bargmann_inner_product(polynomial_coefficients, a_plus - a_minus)
+    sx *= -1  # Aligns with convention of other code
+    sy *= -1
+    sz = bargmann_inner_product(polynomial_coefficients, a_z)
+    return float(sx.real), float(sy.real), float(sz.real)
+
+
 def get_expectation_values[*S_](
     spins: Spin[tuple[*S_, int]],  # type: ignore[override]
 ) -> np.ndarray[tuple[Literal[3], *S_], np.dtype[np.floating]]:  # type: ignore[override]
@@ -242,7 +320,25 @@ def get_expectation_values[*S_](
     momentum_states = spins.momentum_states
     momentum_states = momentum_states.reshape(momentum_states.shape[0], -1)
     expectation_values_list = [
-        _get_transverse_expectation(momentum_states[:, i])
+        _get_expectation(momentum_states[:, i]) for i in range(momentum_states.shape[1])
+    ]
+    return np.stack(expectation_values_list, axis=-1, dtype=np.float64).reshape(
+        3, *spins.shape[:-1]
+    )  # type: ignore[return-value]
+
+
+def get_bargmann_expectation_values[*S_](
+    spins: Spin[tuple[*S_, int]],  # type: ignore[override]
+) -> np.ndarray[tuple[Literal[3], *S_], np.dtype[np.floating]]:  # type: ignore[override]
+    """Get the expectation values of the spin.
+
+    Returns an array of shape (3, *spins.shape) where the first dimension corresponds to
+    the expectation values for S_x, S_y, and S_z.
+    """
+    momentum_states = spins.momentum_states
+    momentum_states = momentum_states.reshape(momentum_states.shape[0], -1)
+    expectation_values_list = [
+        _get_bargmann_expectation(momentum_states[:, i])
         for i in range(momentum_states.shape[1])
     ]
     return np.stack(expectation_values_list, axis=-1, dtype=np.float64).reshape(
@@ -296,3 +392,68 @@ class CoherentSpin(Spin[tuple[()]]):
 type GenericSpin = Spin[tuple[int]]
 type GenericSpinList = Spin[tuple[int, int]]
 type CoherentSpinList = Spin[tuple[int]]
+
+
+class EmptySpin(Spin[tuple[int]]):
+    """Represents the absence of rotational angular momentum with zero Majorana stars."""
+
+    def __init__(self) -> None:
+        """Initialize EmptySpin with zero Majorana stars."""
+        # Create an array with zero rows and 2 columns
+        spins = np.zeros((0, 2), dtype=np.float64)
+        super().__init__(spins=spins)
+
+    @property
+    @override
+    def n_stars(self) -> int:
+        """Override the number of Majorana stars to return zero."""
+        return 0
+
+    @override
+    def flat_iter(self) -> Iterator[CoherentSpin]:
+        """Return an empty iterator since there are no Majorana stars."""
+        return iter([])
+
+
+class EmptySpinList(Spin[tuple[int, int]]):
+    """Represents a list of empty spins with zero Majorana stars."""
+
+    def __init__(self, shape: tuple[int, int]) -> None:
+        """Initialize EmptySpinList with a given number of empty spins."""
+        # Create an array with n_rows rows, n_cols columns, and 2 spin components, filled with zeros
+        spins = np.zeros(
+            (shape[0], shape[1], 2), dtype=np.float64
+        )  # Match the expected 3D shape
+        super().__init__(spins=spins)
+
+    @property
+    @override
+    def n_stars(self) -> int:
+        """Override the number of Majorana stars to return zero."""
+        return 0
+
+    @override
+    def flat_iter(self) -> Iterator[CoherentSpin]:
+        """Return an iterator over all empty spins."""
+        return EmptySpin().flat_iter()
+
+
+class EmptySpinListList(Spin[tuple[int, int, int]]):
+    """Represents the absence of rotational angular momentum with zero Majorana stars in a 3D structure."""
+
+    def __init__(self, shape: tuple[int, int, int]) -> None:
+        """Initialize EmptySpin3D with a given 3D shape."""
+        # Create an array with the specified shape and 2 spin components, filled with zeros
+        spins = np.zeros((*shape, 2), dtype=np.float64)
+        super().__init__(spins=spins)
+
+    @property
+    @override
+    def n_stars(self) -> int:
+        """Override the number of Majorana stars to return zero."""
+        return 0
+
+    @override
+    def flat_iter(self) -> Iterator[CoherentSpin]:
+        """Return an iterator over all empty spins."""
+        return EmptySpin().flat_iter()  # No Majorana stars, so return an empty iterator

@@ -6,13 +6,18 @@ from typing import Any
 import numpy as np
 from scipy.integrate import solve_ivp  # type: ignore[import-untyped]
 
-from spinecho_sim.solenoid import Solenoid, SolenoidTrajectory
+from spinecho_sim.solenoid import (
+    MonatomicSolenoid,
+    MonatomicSolenoidTrajectory,
+    Solenoid,
+    SolenoidTrajectory,
+)
 from spinecho_sim.state import (
     CoherentSpin,
+    MonatomicParticleState,
+    MonatomicTrajectory,
     ParticleDisplacement,
-    ParticleState,
     Spin,
-    Trajectory,
     sample_gaussian_velocities,
     sample_uniform_displacement,
 )
@@ -46,9 +51,9 @@ def _get_field(
     )
 
 
-def simulate_trajectory_cartesean(
+def simulate_trajectory_cartesian(
     solenoid: Solenoid,
-    initial_state: ParticleState,
+    initial_state: MonatomicParticleState,
     n_steps: int = 100,
 ) -> SolenoidTrajectory:
     """Run the spin echo simulation using configured parameters."""
@@ -76,9 +81,9 @@ def simulate_trajectory_cartesean(
     spins = Spin.from_iter(
         [x.as_generic() for x in starmap(CoherentSpin.from_cartesian, sol.y.T)]  # type: ignore[return-value]
     )
-    return SolenoidTrajectory(
-        trajectory=Trajectory(
-            spins=spins,
+    return MonatomicSolenoidTrajectory(
+        trajectory=MonatomicTrajectory(
+            _spin_angular_momentum=spins,
             displacement=initial_state.displacement,
             parallel_velocity=initial_state.parallel_velocity,
         ),
@@ -89,15 +94,15 @@ def simulate_trajectory_cartesean(
 def test_simulate_trajectory() -> None:
     particle_velocity = 714
 
-    initial_state = ParticleState(
-        spin=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(),
+    initial_state = MonatomicParticleState(
+        _spin_angular_momentum=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(),
         displacement=sample_uniform_displacement(1, 1.16e-3)[0],
         parallel_velocity=sample_gaussian_velocities(
             1, particle_velocity, 0.225 * particle_velocity
         )[0],
     )
 
-    solenoid = Solenoid.from_experimental_parameters(
+    solenoid = MonatomicSolenoid.from_experimental_parameters(
         length=0.75,
         magnetic_constant=3.96e-3,
         current=0.01,
@@ -105,12 +110,12 @@ def test_simulate_trajectory() -> None:
     n_steps = 300
     result = solenoid.simulate_trajectory(initial_state, n_steps=n_steps)
 
-    assert result.spins.cartesian.shape == (3, n_steps + 1, 1)
+    assert result.spin.cartesian.shape == (3, n_steps + 1, 1)
 
-    expected = simulate_trajectory_cartesean(solenoid, initial_state, n_steps=n_steps)
+    expected = simulate_trajectory_cartesian(solenoid, initial_state, n_steps=n_steps)
     np.testing.assert_allclose(
-        result.spins.cartesian,
-        expected.spins.cartesian,
+        result.spin.cartesian,
+        expected.spin.cartesian,
         atol=1e-4,
     )
 
@@ -118,14 +123,16 @@ def test_simulate_trajectory() -> None:
 def test_simulate_trajectories() -> None:
     particle_velocity = 714
 
-    initial_state = ParticleState(
-        spin=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(n_stars=2),
+    initial_state = MonatomicParticleState(
+        _spin_angular_momentum=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(
+            n_stars=2
+        ),
         displacement=sample_uniform_displacement(1, 1.16e-3)[0],
         parallel_velocity=sample_gaussian_velocities(
             1, particle_velocity, 0.225 * particle_velocity
         )[0],
     )
-    solenoid = Solenoid.from_experimental_parameters(
+    solenoid = MonatomicSolenoid.from_experimental_parameters(
         length=0.75,
         magnetic_constant=3.96e-3,
         current=0.01,
@@ -135,13 +142,13 @@ def test_simulate_trajectories() -> None:
 
     # Both theta and phi should be the same for all stars
     np.testing.assert_allclose(
-        result.spins.theta[0, ..., 0],
-        expected.spins.theta[..., 1],
+        result.spin.theta[0, ..., 0],
+        expected.spin.theta[..., 1],
         atol=1e-4,
     )
     np.testing.assert_allclose(
-        result.spins.phi[0, ..., 0],
-        expected.spins.phi[..., 1],
+        result.spin.phi[0, ..., 0],
+        expected.spin.phi[..., 1],
         atol=1e-4,
     )
 
@@ -149,14 +156,16 @@ def test_simulate_trajectories() -> None:
 def test_simulate_trajectory_high_spin() -> None:
     particle_velocity = 714
 
-    initial_state = ParticleState(
-        spin=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(n_stars=2),
+    initial_state = MonatomicParticleState(
+        _spin_angular_momentum=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(
+            n_stars=2
+        ),
         displacement=sample_uniform_displacement(1, 1.16e-3)[0],
         parallel_velocity=sample_gaussian_velocities(
             1, particle_velocity, 0.225 * particle_velocity
         )[0],
     )
-    solenoid = Solenoid.from_experimental_parameters(
+    solenoid = MonatomicSolenoid.from_experimental_parameters(
         length=0.75,
         magnetic_constant=3.96e-3,
         current=0.01,
@@ -165,18 +174,20 @@ def test_simulate_trajectory_high_spin() -> None:
 
     # Both theta and phi should be the same for all stars
     np.testing.assert_allclose(
-        result.spins.theta[0, ..., 0],
-        result.spins.theta[1, ..., 1],
+        result.spin.theta[0, ..., 0],
+        result.spin.theta[1, ..., 1],
         atol=1e-4,
     )
     np.testing.assert_allclose(
-        result.spins.phi[0, ..., 0],
-        result.spins.phi[1, ..., 1],
+        result.spin.phi[0, ..., 0],
+        result.spin.phi[1, ..., 1],
         atol=1e-4,
     )
 
-    initial_state_1 = ParticleState(
-        spin=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(n_stars=1),
+    initial_state_1 = MonatomicParticleState(
+        _spin_angular_momentum=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(
+            n_stars=1
+        ),
         displacement=initial_state.displacement,
         parallel_velocity=initial_state.parallel_velocity,
     )
@@ -184,12 +195,12 @@ def test_simulate_trajectory_high_spin() -> None:
 
     # Both theta and phi should be the same for all stars
     np.testing.assert_allclose(
-        result_1.spins.theta[..., 0],
-        result.spins.theta[..., 1],
+        result_1.spin.theta[..., 0],
+        result.spin.theta[..., 1],
         atol=1e-4,
     )
     np.testing.assert_allclose(
-        result_1.spins.phi[..., 0],
-        result.spins.phi[..., 1],
+        result_1.spin.phi[..., 0],
+        result.spin.phi[..., 1],
         atol=1e-4,
     )

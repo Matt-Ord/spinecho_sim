@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from spinecho_sim import (
-    ParticleState,
-    Solenoid,
+    MonatomicParticleState,
 )
 from spinecho_sim.solenoid import (
+    MonatomicSolenoid,
     plot_expectation_angles,
     plot_expectation_values,
     plot_spin_states,
@@ -22,8 +22,10 @@ if __name__ == "__main__":
     particle_velocity = 714
     num_spins = 10
     initial_states = [
-        ParticleState(
-            spin=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(n_stars=1),
+        MonatomicParticleState(
+            _spin_angular_momentum=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(
+                n_stars=1
+            ),
             displacement=displacement,
             parallel_velocity=velocity,
             gyromagnetic_ratio=-2.04e8,
@@ -37,14 +39,14 @@ if __name__ == "__main__":
         )
     ]
 
-    solenoid = Solenoid.from_experimental_parameters(
+    solenoid = MonatomicSolenoid.from_experimental_parameters(
         length=0.75,
         magnetic_constant=3.96e-3,
         current=0.1,
     )
     result = solenoid.simulate_trajectories(initial_states, n_steps=1000)
 
-    n_stars = result.spins.n_stars
+    n_stars = result.spin.n_stars
     S = n_stars / 2
     S_label = f"{S:.0f}" if S is int else f"{S:.1f}"
 

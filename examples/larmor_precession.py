@@ -3,15 +3,13 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
-from spinecho_sim import (
-    ParticleState,
-    Solenoid,
-)
 from spinecho_sim.solenoid import (
+    MonatomicSolenoid,
     plot_expectation_trajectory,
 )
 from spinecho_sim.state import (
     CoherentSpin,
+    MonatomicParticleState,
     ParticleDisplacement,
 )
 
@@ -20,20 +18,22 @@ if __name__ == "__main__":
     # if it is displaced from the center of the solenoid, it will also slightly
     # rotate towards s_z, which reduces the intensity of the beam.
     particle_velocity = 714
-    initial_state = ParticleState(
-        spin=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(n_stars=1),
+    initial_state = MonatomicParticleState(
+        _spin_angular_momentum=CoherentSpin(theta=np.pi / 2, phi=0).as_generic(
+            n_stars=1
+        ),
         parallel_velocity=714,
         displacement=ParticleDisplacement(r=1.16e-3),
     )
 
-    solenoid = Solenoid.from_experimental_parameters(
+    solenoid = MonatomicSolenoid.from_experimental_parameters(
         length=0.75,
         magnetic_constant=3.96e-3,
         current=0.1,
     )
     result = solenoid.simulate_trajectory(initial_state, n_steps=1000)
 
-    n_stars = result.spins.n_stars
+    n_stars = result.spin.n_stars
     S = n_stars / 2
     S_label = f"{S:.0f}" if S is int else f"{S:.1f}"
 

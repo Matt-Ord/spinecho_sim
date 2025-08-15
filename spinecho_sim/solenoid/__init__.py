@@ -10,12 +10,18 @@ from spinecho_sim.solenoid._plot import (
     plot_spin_states,
 )
 from spinecho_sim.solenoid._solenoid import (
+    MonatomicSolenoid,
+    MonatomicSolenoidSimulationResult,
+    MonatomicSolenoidTrajectory,
     Solenoid,
     SolenoidSimulationResult,
     SolenoidTrajectory,
 )
 
 __all__ = [
+    "MonatomicSolenoid",
+    "MonatomicSolenoidSimulationResult",
+    "MonatomicSolenoidTrajectory",
     "Solenoid",
     "SolenoidSimulationResult",
     "SolenoidTrajectory",
